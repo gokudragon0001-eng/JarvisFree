@@ -1,0 +1,10 @@
+ONLINE APK BUILD (GitHub Actions)
+
+1. Create a GitHub repository named JarvisFree.
+2. Upload the CONTENTS of this JarvisFree folder to the repository root (including the hidden .github folder).
+3. Open the Actions tab and enable workflows if GitHub asks.
+4. Select "Build JARVIS APK" on the left, then click "Run workflow" and confirm.
+5. Wait for the run to finish with a green check mark.
+6. Open the successful run and download the "JARVIS-debug-APK" artifact. Extract the downloaded artifact ZIP to get app-debug.apk.
+
+Never put your Gemini API key in this public repository. Enter it only inside the app on your phone.
