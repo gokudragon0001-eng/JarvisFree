@@ -1,0 +1,42 @@
+JARVIS QUICK COMMANDS
+
+Tap the microphone and speak, or type a command:
+- Open WhatsApp / WhatsApp kholo
+- Open Instagram
+- Open YouTube
+- Open Facebook
+- Open Chrome / browser kholo
+- Open Google Maps
+- Open Gmail
+- Open Spotify
+- Open Telegram
+- Open Snapchat
+- Open TikTok
+- Open camera
+- Open settings
+- Open Wi-Fi settings
+- Open Bluetooth settings
+- Volume up / volume barhao
+- Volume down / volume kam
+- Search weather in Lahore
+- Type Hello, how are you?
+
+Optional wake phrase:
+1. Open JARVIS and tap START HEY JARVIS LISTENING.
+2. Keep the persistent listening notification visible.
+3. Say: "Hey JARVIS, open WhatsApp".
+4. Stop from the Stop action in the notification.
+
+Optional text entry:
+1. Tap ENABLE OPTIONAL PHONE CONTROL.
+2. In Android Accessibility settings, enable JARVIS Phone Control.
+3. Open the target app and tap its text box.
+4. Return to JARVIS and say/type "type your message".
+5. Review the entered text and manually press Send in the target app.
+
+Privacy and safety:
+- Wake phrase mode keeps the microphone service active until stopped.
+- Android speech recognition may send audio to the phone's configured speech provider.
+- Accessibility permission can inspect the active window to locate the focused text field.
+- JARVIS never presses Send or silently sends a message.
+- Do not enter passwords, payment details, or sensitive information through voice automation.
