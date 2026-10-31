@@ -40,3 +40,14 @@ Privacy and safety:
 - Accessibility permission can inspect the active window to locate the focused text field.
 - JARVIS never presses Send or silently sends a message.
 - Do not enter passwords, payment details, or sensitive information through voice automation.
+
+
+NEW COMMAND EXAMPLES (v1.3 update)
+- Say “Hello” or “Hello JARVIS” to wake the assistant, then speak your command.
+- “Open [installed app name]” / “[app name] kholo” (best-match installed launcher app).
+- “YouTube search Naruto” / “YouTube par Naruto search karo”.
+- “Open website example.com”.
+- “WhatsApp message to Irfan: Hello Irfan” (asks Contacts permission, finds a saved contact, opens a prefilled WhatsApp chat; you must review and press Send yourself).
+- “Wi-Fi settings kholo” / “Bluetooth settings kholo” (opens Android settings; Android does not allow silent toggling here).
+
+Wake phrase requires microphone permission and an ongoing foreground notification. Speech recognition availability, language accuracy, battery use and background reliability depend on the phone and its speech provider.

@@ -35,7 +35,7 @@ public class WakeWordService extends Service {
         Notification notification = builder
                 .setSmallIcon(android.R.drawable.ic_btn_speak_now)
                 .setContentTitle("JARVIS is listening")
-                .setContentText("Say: Hey JARVIS, open WhatsApp. Tap Stop to end listening.")
+                .setContentText("Say: Hello. Then give your command. Tap Stop to end listening.")
                 .setOngoing(true)
                 .addAction(android.R.drawable.ic_media_pause, "Stop", stopPending)
                 .build();
@@ -81,16 +81,26 @@ public class WakeWordService extends Service {
 
     private void handlePhrase(String phrase) {
         String lower = phrase.toLowerCase(Locale.ROOT);
-        int idx = lower.indexOf("hey jarvis");
-        int len = 10;
+        int idx = lower.indexOf("hello jarvis");
+        int len = 12;
+        if (idx < 0) {
+            // A standalone "hello" is the requested wake phrase.
+            idx = lower.indexOf("hello");
+            len = 5;
+        }
+        if (idx < 0) { idx = lower.indexOf("hey jarvis"); len = 10; }
         if (idx < 0) { idx = lower.indexOf("jarvis"); len = 6; }
         if (idx < 0 && lower.contains("جاروس")) { idx = lower.indexOf("جاروس"); len = 5; }
         if (idx < 0) return;
         String command = phrase.substring(Math.min(phrase.length(), idx + len)).trim();
+        // Stop this recognizer before MainActivity starts its command recognizer.
+        stopping = true;
         Intent open = new Intent(this, MainActivity.class)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                .putExtra("wake_activated", true);
         if (!command.isEmpty()) open.putExtra("jarvis_command", command);
         startActivity(open);
+        stopSelf();
     }
 
     private void restart() {

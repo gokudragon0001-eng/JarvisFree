@@ -8,11 +8,11 @@ This is a native Java Android Studio project intended for Android 11 (including 
 - Android SpeechRecognizer input and Android TextToSpeech replies. Speech language support depends on the speech service installed on the phone.
 - Gemini Developer API chat using the stable model ID `gemini-3.5-flash-lite`. Google lists this model in its current Gemini API model catalogue.
 - In-app API-key setup shortcut and local private-preferences storage.
-- Local voice commands to open WhatsApp, Instagram, YouTube, Facebook, Chrome, Maps, Gmail, Spotify, Telegram, Snapchat, TikTok, Camera, Settings, Contacts and Phone/Dialer (only if installed).
-- Google search, Wi-Fi/Bluetooth settings screens, and media volume up/down. Android opens protected settings pages; it does not silently toggle protected system controls.
+- Local voice commands to open WhatsApp, Instagram, YouTube, Facebook, Chrome, Maps, Gmail, Spotify, Telegram, Snapchat, TikTok, Camera, Settings, Contacts and Phone/Dialer (only if installed), plus best-match launch by installed app label.
+- Google search, YouTube search, website opening, Wi-Fi/Bluetooth settings screens, and media volume up/down. Android opens protected settings pages; it does not silently toggle protected system controls.
 - Optional foreground wake-phrase listener. User must start it from the app and can stop it from its persistent notification. Say `Hey JARVIS, open WhatsApp`. This uses Android's speech recognition service (often network-based), consumes battery, and is not a low-power offline hotword engine. Background reliability varies by phone vendor; OPPO battery management may stop it.
 - Optional Accessibility Service. User must explicitly enable **JARVIS Phone Control** in Android Accessibility settings. It only enters dictated text into the currently focused editable field; it does not press Send, click arbitrary buttons, or send messages.
-- WhatsApp share intent can pass text into WhatsApp; user must choose a recipient and press Send. Contact-name resolution and automated sending are not implemented.
+- WhatsApp share intent can pass text into WhatsApp; user must choose a recipient and press Send. Contact-name resolution is supported for the explicit format “WhatsApp message to NAME: MESSAGE” when the contact is saved and Contacts permission is granted. The app opens a prefilled WhatsApp chat; the user must review and press Send. Automated sending is intentionally not implemented.
 
 ## Setup the free AI
 
@@ -43,3 +43,17 @@ This is a native Java Android Studio project intended for Android 11 (including 
 - Gemini AI answers questions; it does not itself get unrestricted phone-control permissions. Device actions are a limited local command set.
 - WhatsApp contact lookup, Instagram DM automation, silent sending, arbitrary app control, Bluetooth/Wi-Fi silent toggles, and protected system actions are not included. Android intentionally restricts many of these.
 - Free Gemini API quotas and model access can vary by account, region and time.
+
+
+## Hello wake word update
+- On first launch, grant microphone permission. JARVIS starts its foreground wake listener and shows an ongoing notification.
+- Say **Hello** (or **Hello JARVIS**) to wake it, then speak a command when it replies.
+- Tap Stop in the notification to stop listening. Wake detection uses Android speech recognition and may require internet depending on the phone's speech provider.
+- Android can restrict microphone access while an app is backgrounded; keep the foreground-service notification visible. This is not a guaranteed always-on hotword service.
+
+
+## v1.3 source updates
+- Added saved-contact lookup for the command format `WhatsApp message to NAME: MESSAGE`. The app requests Contacts permission only when this command is used, then opens a WhatsApp prefilled chat. The user must inspect the recipient and text and tap Send.
+- Improved installed-app matching using launcher labels (exact and partial matches).
+- Added YouTube search and direct website-opening commands.
+- This remains a source update and has not been built or tested on the OPPO A16 in this environment. Wake-word listening uses Android SpeechRecognizer, not an offline low-power hotword engine; the user-visible foreground notification is required and the phone may stop it due to battery management.

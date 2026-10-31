@@ -35,12 +35,16 @@ import java.util.concurrent.Executors;
 
 public class MainActivity extends Activity implements TextToSpeech.OnInitListener {
     private static final int REQ_AUDIO = 41;
+    private static final int REQ_CONTACTS = 42;
+    private String pendingContactName = "";
+    private String pendingMessageText = "";
     private SpeechRecognizer recognizer;
     private TextToSpeech tts;
     private TextView status, heard, response;
     private EditText prompt;
     private Button mic, ask, keyButton, accessibilityButton, wakeButton;
     private boolean pendingWakeStart = false;
+    private boolean listeningAfterWake = false;
     private SharedPreferences prefs;
     private final ExecutorService network = Executors.newSingleThreadExecutor();
     private final JSONArray conversation = new JSONArray();
@@ -73,6 +77,16 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
             status.setText("Speech recognition service unavailable. Text chat can still work.");
             mic.setEnabled(false);
         }
+        // First launch asks for microphone permission; after approval, start the opted-in
+        // persistent wake listener. Android displays its ongoing notification while active.
+        boolean launchedByWake = getIntent() != null && getIntent().getBooleanExtra("wake_activated", false);
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+            if (!launchedByWake) startWakeWordService();
+        } else {
+            pendingWakeStart = !launchedByWake;
+            requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, REQ_AUDIO);
+        }
+        handleIncomingIntent(getIntent());
     }
 
     @Override public void onInit(int result) {
@@ -112,21 +126,36 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         try {
             Intent service = new Intent(this, WakeWordService.class);
             if (android.os.Build.VERSION.SDK_INT >= 26) startForegroundService(service); else startService(service);
-            respond("Wake phrase listener started. Say: Hey JARVIS, open WhatsApp. Keep the notification visible; it uses battery and internet speech recognition.");
+            respond("Hello wake word is active. Say Hello, then give your command. Keep the notification visible; listening uses battery and may use internet speech recognition.");
         } catch (Exception e) { respond("Could not start wake phrase listener. Open JARVIS again and try."); }
     }
 
     @Override protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
-        if (intent != null && intent.hasExtra("jarvis_command")) {
+        handleIncomingIntent(intent);
+    }
+
+    private void handleIncomingIntent(Intent intent) {
+        if (intent == null) return;
+        if (intent.getBooleanExtra("wake_activated", false)) listeningAfterWake = true;
+        if (intent.hasExtra("jarvis_command")) {
             String command = intent.getStringExtra("jarvis_command");
             if (command != null && !command.trim().isEmpty()) {
                 heard.setText(command);
                 prompt.setText(command);
                 processInput(command);
-            } else respond("I'm listening. What can I do for you?");
+                if (intent.getBooleanExtra("wake_activated", false)) {
+                    new android.os.Handler(getMainLooper()).postDelayed(this::startWakeWordService, 2500);
+                }
+            }
+        } else if (intent.getBooleanExtra("wake_activated", false)) {
+            listeningAfterWake = true;
+            respond("Ji, main sun raha hoon. Batayein?");
+            new android.os.Handler(getMainLooper()).postDelayed(this::startListening, 700);
         }
+        intent.removeExtra("wake_activated");
+        intent.removeExtra("jarvis_command");
     }
 
     private void startListening() {
@@ -150,6 +179,10 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
                     heard.setText(command);
                     prompt.setText(command);
                     processInput(command);
+                    if (listeningAfterWake) {
+                        listeningAfterWake = false;
+                        new android.os.Handler(getMainLooper()).postDelayed(() -> startWakeWordService(), 1800);
+                    }
                 }
             }
             public void onPartialResults(Bundle b) { }
@@ -174,6 +207,11 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
 
     private void processInput(String raw) {
         String c = raw.toLowerCase(Locale.ROOT).trim();
+        // Try a dynamically discovered installed app name after the common app shortcuts.
+        if (c.startsWith("open ") || c.startsWith(" kholo ") || c.endsWith(" kholo")) {
+            String requested = c.replaceFirst("(?i)^open\\s+", "").replaceFirst("(?i)\\s+kholo$", "").trim();
+            if (openInstalledAppByName(requested)) return;
+        }
         // Local device actions run on-device and do not need an AI key.
         if (containsAny(c, "open whatsapp", "whatsapp kholo", "whatsapp کھولو", "whatsapp kholo")) { openPackage("com.whatsapp", "WhatsApp"); return; }
         if (containsAny(c, "open instagram", "instagram kholo", "instagram کھولو")) { openPackage("com.instagram.android", "Instagram"); return; }
@@ -201,15 +239,29 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
             respond(typed ? "Text entered in the focused field. Please review it before sending." : "Enable JARVIS Phone Control in Accessibility settings, open a text field, then try again.");
             return;
         }
+        if (c.startsWith("youtube search ") || c.startsWith("search youtube for ") || c.startsWith("youtube par ") && c.endsWith(" search karo")) {
+            String q = raw.replaceFirst("(?i)^\\s*(youtube search|search youtube for|youtube par)\\s*", "").replaceFirst("(?i)\\s*search karo$", "").trim();
+            if (!q.isEmpty()) { openUrl("https://www.youtube.com/results?search_query=" + Uri.encode(q)); respond("YouTube par " + q + " search kar raha hoon."); return; }
+        }
+        if (c.startsWith("open website ") || c.startsWith("website kholo ") || c.startsWith("open site ")) {
+            String address = raw.replaceFirst("(?i)^\\s*(open website|website kholo|open site)\\s*", "").trim();
+            if (!address.isEmpty()) { if (!address.matches("(?i)^https?://.*")) address = "https://" + address; openUrl(address); respond("Website khol raha hoon: " + address); return; }
+        }
         if (c.startsWith("search ") || c.startsWith("google ") || c.contains("search for")) {
             String q = raw.replaceFirst("(?i)^\\s*(search( for)?|google)\\s*", "").trim();
             openUrl("https://www.google.com/search?q=" + Uri.encode(q)); respond("Searching Google for " + q); return;
         }
+        if (c.startsWith("whatsapp message to ") || c.startsWith("message whatsapp ") || c.startsWith("whatsapp ko message ")) {
+            String rest = raw.replaceFirst("(?i)^\\s*(whatsapp message to|message whatsapp|whatsapp ko message)\\s*", "").trim();
+            int split = rest.indexOf(':');
+            if (split < 1 || split == rest.length() - 1) { respond("Is tarah bolain: WhatsApp message to Irfan: Hello Irfan"); return; }
+            openWhatsAppContact(rest.substring(0, split).trim(), rest.substring(split + 1).trim());
+            return;
+        }
         if (containsAny(c, "send whatsapp", "whatsapp message", "message on whatsapp")) {
             Intent share = new Intent(Intent.ACTION_SEND); share.setType("text/plain");
-            share.putExtra(Intent.EXTRA_TEXT, raw);
-            share.setPackage("com.whatsapp");
-            try { startActivity(share); respond("WhatsApp opened with your text. Please choose the contact and press send yourself."); }
+            share.putExtra(Intent.EXTRA_TEXT, raw); share.setPackage("com.whatsapp");
+            try { startActivity(share); respond("WhatsApp opened. Choose the contact, review the message, then press Send yourself."); }
             catch (Exception e) { respond("WhatsApp is not installed."); }
             return;
         }
@@ -278,6 +330,50 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         respond(direction == AudioManager.ADJUST_RAISE ? "Volume increased." : "Volume decreased.");
     }
 
+    private boolean openInstalledAppByName(String requested) {
+        if (requested.isEmpty()) return false;
+        String wanted = requested.toLowerCase(Locale.ROOT).replaceAll("[^\\p{L}\\p{N}]", "").trim();
+        android.content.Intent query = new android.content.Intent(android.content.Intent.ACTION_MAIN, null);
+        query.addCategory(android.content.Intent.CATEGORY_LAUNCHER);
+        android.content.pm.ResolveInfo best = null; int bestScore = 0;
+        for (android.content.pm.ResolveInfo info : getPackageManager().queryIntentActivities(query, 0)) {
+            CharSequence label = info.loadLabel(getPackageManager());
+            if (label == null) continue;
+            String candidate = label.toString().toLowerCase(Locale.ROOT).replaceAll("[^\\p{L}\\p{N}]", "");
+            int score = candidate.equals(wanted) ? 100 : (candidate.startsWith(wanted) || wanted.startsWith(candidate) ? 70 : (candidate.contains(wanted) ? 50 : 0));
+            if (score > bestScore) { best = info; bestScore = score; }
+        }
+        if (best != null && bestScore >= 50) {
+            Intent launchIntent = getPackageManager().getLaunchIntentForPackage(best.activityInfo.packageName);
+            if (launchIntent != null) { launch(launchIntent, "Opening " + best.loadLabel(getPackageManager())); return true; }
+        }
+        return false;
+    }
+
+    private void openWhatsAppContact(String name, String message) {
+        if (name.isEmpty() || message.isEmpty()) { respond("Contact name aur message dono batayein."); return; }
+        if (checkSelfPermission(Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED) {
+            pendingContactName = name; pendingMessageText = message;
+            requestPermissions(new String[]{Manifest.permission.READ_CONTACTS}, REQ_CONTACTS); return;
+        }
+        android.database.Cursor cursor = null;
+        try {
+            cursor = getContentResolver().query(android.provider.ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+                new String[]{android.provider.ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME, android.provider.ContactsContract.CommonDataKinds.Phone.NUMBER},
+                android.provider.ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME + " LIKE ?",
+                new String[]{"%" + name + "%"}, null);
+            if (cursor == null || !cursor.moveToFirst()) { respond("Contacts mein " + name + " nahi mila. Contact save karein ya WhatsApp manually kholein."); return; }
+            String foundName = cursor.getString(0); String phone = cursor.getString(1).replaceAll("[^0-9+]", "");
+            phone = phone.replaceAll("^\\+", "");
+            if (phone.startsWith("0")) phone = "92" + phone.substring(1);
+            if (phone.isEmpty()) { respond("Is contact ka valid phone number nahi mila."); return; }
+            Uri uri = Uri.parse("https://api.whatsapp.com/send?phone=" + Uri.encode(phone) + "&text=" + Uri.encode(message));
+            Intent intent = new Intent(Intent.ACTION_VIEW, uri);
+            startActivity(intent);
+            respond(foundName + " ka WhatsApp chat khol raha hoon. Message check karke Send khud press karein.");
+        } catch (Exception e) { respond("WhatsApp chat open nahi ho saka. WhatsApp installed aur contact number sahi hona chahiye."); }
+        finally { if (cursor != null) cursor.close(); }
+    }
     private void openPackage(String pkg, String label) {
         Intent i = getPackageManager().getLaunchIntentForPackage(pkg);
         if (i == null) { respond(label + " is not installed."); return; }
@@ -302,6 +398,11 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
             if (pendingWakeStart) { pendingWakeStart = false; startWakeWordService(); }
             else startListening();
         } else if (request == REQ_AUDIO) { pendingWakeStart = false; Toast.makeText(this, "Microphone permission is required", Toast.LENGTH_LONG).show(); }
+        else if (request == REQ_CONTACTS) {
+            if (results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED) {
+                String n = pendingContactName, m = pendingMessageText; pendingContactName = ""; pendingMessageText = ""; openWhatsAppContact(n, m);
+            } else respond("Contact search ke liye Contacts permission zaroori hai. Aap WhatsApp manually khol sakte hain.");
+        }
     }
     @Override protected void onDestroy() {
         if (recognizer != null) recognizer.destroy();
